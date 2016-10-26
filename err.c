@@ -53,8 +53,8 @@ void show_err(uint64_t status) {
 	case REALLOCFAILED:
 		printf("\terror code: realloc allocation memory failed\n");
 		break;
-	case CLEARSTRUCTERR:
-		printf("\terror code: clear or init structure failed\n");
+	case NOTINITERR:
+		printf("\terror code: not init\n");
 		break;
 	case NOTFOUNDALLBTDEV:
 		printf("\terror code: not found all devices\n");

@@ -1,8 +1,11 @@
+#all is ignore
 *
 
+#excepts with
 !*.c
 !*.h
 !.gitignore
+!maintest\ v1.1.bat
 
-#exceptions
+#this especially ignore
 rs232_comm_test.c

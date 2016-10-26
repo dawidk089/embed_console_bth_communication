@@ -12,5 +12,7 @@ typedef struct {
 	bool is_device_specified;
 }PARAM, *PPARAM;
 
-uint8_t get_param(int argc, char **argv, PPARAM param);
+PPARAM get_param(int argc, char **argv);
+void clear_param();
+uint8_t get_err_param();
 void show_help();

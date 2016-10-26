@@ -1,12 +1,16 @@
 #include "finder.h"
 #include "gc.h"
+#include "err.h"
 #include <inttypes.h>
 #include <stdbool.h>
 #include <stdio.h>
 
-#define MAX_BT_FIND 50
+#define MAX_BT_FIND 2
 
-uint32_t find_bt_device(uint32_t * n_device, PBT_FOUND * pbt_list) {
+uint32_t err_code;
+PBT_FOUND pbt_list;
+
+PBT_FOUND find_bt_device(uint32_t * n_device) {
 	//*** deklaracja zmiennych ***//
 	//rutynowe
 	uint8_t i_device = 0;
@@ -22,20 +26,16 @@ uint32_t find_bt_device(uint32_t * n_device, PBT_FOUND * pbt_list) {
 	//alokacja struktury WSAQuerySet (informacja o znalezionym urzadzeniu)
 	pWSAQuerySet = (PWSAQUERYSET)calloc(1, sizeof(WSAQUERYSET));
 	if (pWSAQuerySet == NULL) {
-		return 0x20000002;
+        err_code = 0x20000002;
+        return NULL;
 	}
 	gc_add((void**)&pWSAQuerySet);
-
-	//sprawdzenie poprawnosci podanych argumentow funkcji
-	if (*n_device != 0 || (*pbt_list) != NULL) {
-		return 0x20000004;
-	}
 
 	//WSALookupServiceBegin
 #define __PERFORM_WSALookupServiceEnd()							\
 	{															\
 		uint32_t res_status = WSALookupServiceEnd(hLookup);		\
-		if (res_status != 0) return GetLastError();				\
+		if (res_status != 0) err_code = GetLastError();		    \
 	}
 
 	pWSAQuerySet->dwNameSpace = NS_BTH;
@@ -44,8 +44,9 @@ uint32_t find_bt_device(uint32_t * n_device, PBT_FOUND * pbt_list) {
 
 	res_status = WSALookupServiceBegin(pWSAQuerySet, LUP_CONTAINERS | LUP_FLUSHCACHE, &hLookup);
 	if (res_status == SOCKET_ERROR) {
-		//__PERFORM_WSALookupServiceEnd();
-		return GetLastError();
+        err_code = GetLastError();
+        clear_bt_found();
+        return NULL;
 	}
 
 	//petla po zadaniach wyszukania urzadzenia
@@ -59,47 +60,34 @@ uint32_t find_bt_device(uint32_t * n_device, PBT_FOUND * pbt_list) {
 		if (res_status == 0) {
 			size_t length = 0;
 
-			{//nowe otoczenie ze wzgledu na potrzebe przechowania starej wartosci wskaznika
-				PBT_FOUND old_pbt_list = *pbt_list;
-				//realokacja pamieci o kolejne znalezione urzadzenie
-				*pbt_list = (PBT_FOUND)realloc((*pbt_list), (i_device + 1) * sizeof(BT_FOUND));
-				if (*pbt_list == NULL) {
-					__PERFORM_WSALookupServiceEnd();
-					return 0x20000003;
-				}
-				if (i_device == 0) gc_add((void**)pbt_list);
-				else gc_update((void**)&old_pbt_list, (void**)pbt_list);
-			}
+            //realokacja pamieci o kolejne znalezione urzadzenie
+            pbt_list = realloc(pbt_list, (i_device + 1) * sizeof(BT_FOUND));
+            if (pbt_list == NULL) {
+                err_code = 0x20000003;
+                __PERFORM_WSALookupServiceEnd();
+                clear_bt_found();
+                return NULL;
+            }
 
 			//alokacja pamieci na napis -- nazwe urzadzenia
 			length = strlen(pWSAQuerySet->lpszServiceInstanceName) + sizeof(L'\0');
-			(*pbt_list)[i_device].name = (char *)calloc(length, sizeof(char));
-			if ((*pbt_list)[i_device].name == NULL) {
+			pbt_list[i_device].name = (char *)calloc(length, sizeof(char));
+			if (pbt_list[i_device].name == NULL) {
+                err_code = 0x20000002;
 				__PERFORM_WSALookupServiceEnd();
-				return 0x20000002;
+                clear_bt_found();
+				return NULL;
 			}
-			gc_add((void**)&((*pbt_list)[i_device].name));
+			gc_add((void**)&(pbt_list[i_device].name));
 
 			//kopia wybranych wlasciwosci urzadzenia
-			strcpy((*pbt_list)[i_device].name, pWSAQuerySet->lpszServiceInstanceName);
-			(*pbt_list)[i_device].address = ((SOCKADDR_BTH *)pWSAQuerySet->lpcsaBuffer->RemoteAddr.lpSockaddr)->btAddr;
-			(*pbt_list)[i_device].flags = pWSAQuerySet->dwOutputFlags;
-			(*pbt_list)[i_device].COD = pWSAQuerySet->lpServiceClassId->Data1;
-			memcpy(&(*pbt_list)[i_device].ServiceClassId, pWSAQuerySet->lpServiceClassId, sizeof(GUID));
-			memcpy(&(*pbt_list)[i_device].SockAddr, (SOCKADDR_BTH *)pWSAQuerySet->lpcsaBuffer->RemoteAddr.lpSockaddr, sizeof((*pbt_list)[i_device].SockAddr)); //#SOCKADDR
+			strcpy(pbt_list[i_device].name, pWSAQuerySet->lpszServiceInstanceName);
+			pbt_list[i_device].address = ((SOCKADDR_BTH *)pWSAQuerySet->lpcsaBuffer->RemoteAddr.lpSockaddr)->btAddr;
+			pbt_list[i_device].flags = pWSAQuerySet->dwOutputFlags;
+			pbt_list[i_device].COD = pWSAQuerySet->lpServiceClassId->Data1;
+			memcpy(&pbt_list[i_device].ServiceClassId, pWSAQuerySet->lpServiceClassId, sizeof(GUID));
+			memcpy(&pbt_list[i_device].SockAddr, (SOCKADDR_BTH *)pWSAQuerySet->lpcsaBuffer->RemoteAddr.lpSockaddr, sizeof(pbt_list[i_device].SockAddr)); //#SOCKADDR
 			*n_device = i_device + 1;
-			printf("GUID: 0x%I32X 0x%04X 0x%04X 0x%02X%02X%02X%02X%02X%02X%02X%02X \n",
-                pWSAQuerySet->lpServiceClassId->Data1, pWSAQuerySet->lpServiceClassId->Data2, pWSAQuerySet->lpServiceClassId->Data3,
-                pWSAQuerySet->lpServiceClassId->Data4[0], pWSAQuerySet->lpServiceClassId->Data4[1],
-                pWSAQuerySet->lpServiceClassId->Data4[2], pWSAQuerySet->lpServiceClassId->Data4[3],
-                pWSAQuerySet->lpServiceClassId->Data4[4], pWSAQuerySet->lpServiceClassId->Data4[5],
-                pWSAQuerySet->lpServiceClassId->Data4[6], pWSAQuerySet->lpServiceClassId->Data4[7]);
-            printf("GUID: 0x%I32X 0x%04X 0x%04X 0x%02X%02X%02X%02X%02X%02X%02X%02X \n",
-                (*pbt_list)[i_device].ServiceClassId.Data1, (*pbt_list)[i_device].ServiceClassId.Data2, (*pbt_list)[i_device].ServiceClassId.Data3,
-                (*pbt_list)[i_device].ServiceClassId.Data4[0], (*pbt_list)[i_device].ServiceClassId.Data4[1],
-                (*pbt_list)[i_device].ServiceClassId.Data4[2], (*pbt_list)[i_device].ServiceClassId.Data4[3],
-                (*pbt_list)[i_device].ServiceClassId.Data4[4], (*pbt_list)[i_device].ServiceClassId.Data4[5],
-                (*pbt_list)[i_device].ServiceClassId.Data4[6], (*pbt_list)[i_device].ServiceClassId.Data4[7]);
 		}
 		else { //#WSALookupServiceNext failed
 			res_status = GetLastError();
@@ -112,8 +100,10 @@ uint32_t find_bt_device(uint32_t * n_device, PBT_FOUND * pbt_list) {
 					PWSAQUERYSET old_pWSAQuerySet = pWSAQuerySet;
 					pWSAQuerySet = (PWSAQUERYSET)realloc(pWSAQuerySet, required_size);
 					if (pWSAQuerySet == NULL) {
+						err_code = 0x20000004;
 						__PERFORM_WSALookupServiceEnd();
-						return 0x20000004;
+                        clear_bt_found();
+                        return NULL;
 					}
 					gc_update((void**)&old_pWSAQuerySet, (void**)&pWSAQuerySet);
 				}
@@ -121,8 +111,10 @@ uint32_t find_bt_device(uint32_t * n_device, PBT_FOUND * pbt_list) {
 				is_again = true;
 				continue;
 			} //#WSAEFAULT
+			err_code = res_status;
 			__PERFORM_WSALookupServiceEnd();
-			return res_status;
+            clear_bt_found();
+            return NULL;
 		} //#WSALookupServiceNext failed
 	} //#for
 	if (i_device == MAX_BT_FIND)
@@ -132,9 +124,22 @@ uint32_t find_bt_device(uint32_t * n_device, PBT_FOUND * pbt_list) {
 	else if (res_status == WSA_E_NO_MORE)
 		res_status = 0;
 
+    //return 0;
+	err_code = res_status;
 	__PERFORM_WSALookupServiceEnd();
+    return pbt_list;
 #undef __PERFORM_WSALookupServiceEnd
-	return res_status;
+}
+
+uint32_t get_finder_err(){
+    return (!pbt_list && !err_code ? NOTINITERR : err_code);
+}
+
+void clear_bt_found(){
+    if(pbt_list){
+        free(pbt_list);
+        pbt_list = NULL;
+    }
 }
 
 

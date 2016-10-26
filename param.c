@@ -1,27 +1,30 @@
 #include "param.h"
+#include "stringcheck.h"
 
 #include "gc.h"
 
 #include <string.h>
 #include <stdlib.h>
+#include <stdio.h>
 
-uint8_t get_param(int argc, char **argv, PPARAM param) {
+uint8_t err_code;
+PPARAM param;
+
+PPARAM get_param(int argc, char **argv) {
 	int i;
 	bool is_critical = false;
-	uint8_t err_code = 0;
 
-	if (param->name != NULL || param->address != 0 || param->cod != 0 || param->filename != NULL) err_code = 0x10;
+	if(!(param = calloc(1, sizeof(PARAM)))){ err_code = 0x11; return NULL;}
+
 	param->is_device_specified = false;
-	param->help = false;
-	param->verbose = false;
-	param->silent = false;
 
 	for (i = 1; i < argc; i++) {
         if (is_critical) break;
-		if (strlen(argv[i]) != 2 || argv[i][0] != '-'){
+		if (strlen(argv[i]) != 2 || argv[i][0] != '-'){ //switch: ^-.$
             err_code = 0x21;
-            continue;
+            continue; //next
 		}
+
         switch (argv[i][1]){
 		case 's':
 			param->silent = true;
@@ -67,7 +70,18 @@ uint8_t get_param(int argc, char **argv, PPARAM param) {
 		}
 	}
 	if (param->address != 0 || param->name != NULL || param->cod != 0) param->is_device_specified = true;
-	return err_code;
+	return param;
+}
+
+void clear_param(){
+    if(param){
+        free(param);
+        param = NULL;
+    }
+}
+
+uint8_t get_err_param(){
+    return (!param && !err_code ? 0x10 : err_code);
 }
 
 void show_help() {

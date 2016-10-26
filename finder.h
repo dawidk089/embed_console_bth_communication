@@ -11,4 +11,6 @@ typedef struct {
 	SOCKADDR_BTH SockAddr;
 }BT_FOUND, *PBT_FOUND;
 
-uint32_t find_bt_device(uint32_t * n_device, PBT_FOUND * pbt_list);
+PBT_FOUND find_bt_device(uint32_t * n_device);
+uint32_t get_finder_err();
+void clear_bt_found();
