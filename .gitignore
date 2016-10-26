@@ -1,11 +1,8 @@
-#compiler file
-*.cpp
-*.o
-*.exe
-#ide C:B file
-*.layout
-*.depend
-*.cbp
-*.cscope_file_list
-#other
+*
+
+!*.c
+!*.h
+!.gitignore
+
+#exceptions
 rs232_comm_test.c
