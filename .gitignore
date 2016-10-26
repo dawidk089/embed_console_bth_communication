@@ -1,0 +1,11 @@
+#compiler file
+*.cpp
+*.o
+*.exe
+#ide C:B file
+*.layout
+*.depend
+*.cbp
+*.cscope_file_list
+#other
+rs232_comm_test.c

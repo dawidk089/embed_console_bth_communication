@@ -1,0 +1,10 @@
+#include <inttypes.h>
+
+#define APPDEFERR 0x20000000
+#define CALLOCFAILED (APPDEFERR|0x2)
+#define REALLOCFAILED (APPDEFERR|0x3)
+#define CLEARSTRUCTERR (APPDEFERR|0x4)
+#define NOTFOUNDALLBTDEV (APPDEFERR|0x5)
+#define NOTFOUNDANYBTDEV (APPDEFERR|0x6)
+
+void show_err(uint64_t status);
