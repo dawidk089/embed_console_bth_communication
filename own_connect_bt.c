@@ -12,9 +12,6 @@
 #include <winsock2.h>
 #include <ws2bth.h>
 
-
-
-
 #define FOUND_MOD_ADDDRESS (1<<2)
 #define FOUND_MOD_NAME (1<<1)
 #define FOUND_MOD_COD (1<<0)
@@ -33,6 +30,7 @@ int main(int argc, char **argv) {
 	//*** deklaracja zmiennych ***//
 	//rutynowe
 	uint8_t i;
+	bool is_device_specified = false;
 
 	//parametry wywolania
 	PPARAM param = NULL;
@@ -54,22 +52,26 @@ int main(int argc, char **argv) {
 	memset(&address, 0, sizeof(client));
 
 	//*** rozpakowanie parametrow ***//
-	//wyswietlenie pomocy jesli blad lub -h, wyjscie
-#define __NSILENT					\
+#define __NSILENT                   \
 if((!param->silent && !param->verbose) || (param->verbose))
 
-#define __VERBOSE					\
+#define __VERBOSE                   \
 if(param->verbose)
     param = get_param(argc, argv);
 	switch(get_err_param()){
     case 0:
+        break;
+    case 0x01:
+        gc_free();
+        clear_param();
+        return 0;
         break;
     case 0x10:
         __DEBUG("->not call param init function (get_param)\n");
         break;
     case 0x11:
         __DEBUG("-> device name in get_params allocation memory failed\n");
-        __NSILENT printf("> error memory access\n");
+        console_out(false, "> error memory access\n");
         __NSILENT show_err(0x20000002);
         gc_free();
         clear_param();
@@ -86,45 +88,32 @@ if(param->verbose)
     case 0x52:
     case 0x53:
     default:
-        __NSILENT printf("> callpath argument error\n");
-        __NSILENT show_help();
+        console_out(false, "> callpath argument error\n");
         clear_param();
         gc_free();
         return 0x20;
     }
 
-	if (param->help) {
-		__NSILENT show_help();
-		clear_param();
-		gc_free();
-		return 0; //powod: wybrano help
-	}
+	if (param->address != 0 || param->name != NULL || param->cod != 0) is_device_specified = true;
 
 
 	//wyswietlanie podanych parametrow
-	__VERBOSE
-	printf("> parameters:\n");
-	__VERBOSE
-	printf(
-		param->name == NULL
+	console_out(true, "> parameters:\n");
+	console_out(true, param->name == NULL
 		? "\tdevice name was not specified\n"
 		: "\tdevice name: %s\n", param->name
 	);
-	__VERBOSE
-		printf(
-			param->address == 0
-			? "\tdevice address was not specified\n"
-			: "\tdevice address: %I64d\n", param->address
+	console_out(true, param->address == 0
+        ? "\tdevice address was not specified\n"
+        : "\tdevice address: %I64d\n", param->address
 	);
-	__VERBOSE
-		printf(
-			param->cod == 0
-			? "\tdevice cod was not specified\n"
-			: "\tdevice cod: %I32d\n", param->cod
+	console_out(true, param->cod == 0
+        ? "\tdevice cod was not specified\n"
+        : "\tdevice cod: %I32d\n", param->cod
 	);
 
 	//brak wymaganych parametrow wywolania w trybie -s
-	if (param->silent && !param->is_device_specified) {
+	if (param->silent && !is_device_specified) {
 		__DEBUG("-> lack of required parameters in mode <silent>\n");
 		gc_free();
 		clear_param();
@@ -141,7 +130,7 @@ if(param->verbose)
 		param->filename = (char*)calloc(32, sizeof(char));
 		if (param->filename == NULL) {
 			__DEBUG("-> filename allocation memory failed\n");
-			__NSILENT	printf("> error memory access\n");
+			 console_out(false, "> error memory access\n");
 			__NSILENT	show_err(ret_status);
 			gc_free();
 			clear_param();
@@ -151,8 +140,7 @@ if(param->verbose)
 
 		//skladanie nazwy
 		sprintf(param->filename, "data_%02d%02d%02d_%02d%02d%02d.txt", date.tm_mday, date.tm_mon+1 , (date.tm_year+1900)%100, date.tm_hour, date.tm_min, date.tm_sec);
-		__VERBOSE
-			printf("> filename: %s\n", param->filename);
+		console_out(true, "> filename: %s\n", param->filename);
 	}
 
 	//*** wyszukiwanie urzadzen ***//
@@ -172,8 +160,7 @@ __NSILENT	show_err(WSAGetLastError());			\
 		}											\
 	}
 
-	__VERBOSE
-		printf("> choosen version Windows Sockets: %d.%d.\n", HIBYTE(winsock_ver), LOBYTE(winsock_ver));
+	console_out(true, "> choosen version Windows Sockets: %d.%d.\n", HIBYTE(winsock_ver), LOBYTE(winsock_ver));
 	ret_status = WSAStartup(winsock_ver, &WSAData);
 
 	__DEBUG(
@@ -190,20 +177,20 @@ __NSILENT	show_err(WSAGetLastError());			\
 		return 0x31;  //powod: blad WSAStartup
 	}
 
-	__VERBOSE
-		printf(
-			"> expects version Windows Sockets: %d.%d\n"
+	console_out(true,
+            "> expects version Windows Sockets: %d.%d\n"
 			"> the highest version Windows Sockets supported: %d.%d\n",
 			HIBYTE(WSAData.wVersion), LOBYTE(WSAData.wVersion),
 			HIBYTE(WSAData.wHighVersion), LOBYTE(WSAData.wHighVersion)
-		);
+    );
+
 
 	//wyszukiwanie urzadzen
-    __VERBOSE printf("> device discovering -- wait 2 to 15s\n");
+    console_out(true, "> device discovering -- wait 2 to 15s\n");
 	pdevices_info = find_bt_device(&n_device);
 	switch ((ret_status = get_finder_err())) {
 	case 0:
-		__VERBOSE printf("> finding device completed successsfully\n");
+		console_out(true, "> finding device completed successsfully\n");
 		break;
 	case 0x20000005:
 	    __NSILENT show_err(ret_status);
@@ -217,9 +204,9 @@ __NSILENT	show_err(WSAGetLastError());			\
 		return 0x41;
 	default:
 		__DEBUG("-> find_bt_device run failed\n");
-		__NSILENT printf("> search devices failed\n");
+		 console_out(false, "> search devices failed\n");
 		if(ret_status == WSASERVICE_NOT_FOUND){
-		    __NSILENT printf("> service found nothing or service has not been found\n");
+		     console_out(false, "> service found nothing or service has not been found\n");
 		     __VERBOSE show_err(ret_status);
             __PERFORM_WSACleanup();
             gc_free();
@@ -238,32 +225,42 @@ __NSILENT	show_err(WSAGetLastError());			\
 	//*** analiza znalezionych urzadzen ***//
 
 	//wylistownie znalezionych urzadzen
-	if (param->verbose || !param->is_device_specified) {
-		printf("\n");
+	if (param->verbose || !is_device_specified) {
+		console_out(false, "\n");
 		for (i = 0; i < n_device; i++) {
-            printf("\n");
-			printf("Device found number: %d\n", i);
-			printf("\tName: %s\n", pdevices_info[i].name);
-			printf("\tAddress: %04I64X:%02I64X:%06I64Xh\n", GET_NAP(pdevices_info[i].address), (GET_SAP(pdevices_info[i].address) & 0xFF000000) >> (6 * 4), GET_SAP(pdevices_info[i].address) & 0xFFFFFF);
-			printf("\tIs it connected?: %s\n", ((pdevices_info[i].flags)&BTHNS_RESULT_DEVICE_CONNECTED ? "YES" : "NO"));
-			printf("\tIs it remembered?: %s\n", ((pdevices_info[i].flags)&BTHNS_RESULT_DEVICE_REMEMBERED ? "YES" : "NO"));
-			printf("\tIs it authenticated?: %s\n", ((pdevices_info[i].flags)&BTHNS_RESULT_DEVICE_AUTHENTICATED ? "YES" : "NO"));
-			printf("\tCOD: %I32d\n", pdevices_info[i].COD);
+            console_out(false,
+                "\n"
+                "Device found number: %d\n"
+                "\tName: %s\n"
+                "\tAddress: %04I64X:%02I64X:%06I64Xh\n"
+                "\tIs it connected?: %s\n"
+                "\tIs it remembered?: %s\n"
+                "\tIs it authenticated?: %s\n"
+                "\tCOD: %I32d\n",
+                i,
+                pdevices_info[i].name,
+                GET_NAP(pdevices_info[i].address),
+                (GET_SAP(pdevices_info[i].address) & 0xFF000000) >> (6 * 4), GET_SAP(pdevices_info[i].address) & 0xFFFFFF,
+                ((pdevices_info[i].flags)&BTHNS_RESULT_DEVICE_CONNECTED ? "YES" : "NO"),
+                ((pdevices_info[i].flags)&BTHNS_RESULT_DEVICE_REMEMBERED ? "YES" : "NO"),
+                ((pdevices_info[i].flags)&BTHNS_RESULT_DEVICE_AUTHENTICATED ? "YES" : "NO"),
+                pdevices_info[i].COD
+            );
 		}
-		printf("\n");
+		console_out(false, "\n");
 	}
 
 	//pobranie wybranego numeru urzadzenia
-	if (!param->is_device_specified) {
+	if (!is_device_specified) {
 		char buffer[64];
 		uint32_t i_device = 0;
 
-		printf(">> type number of device or 'e' to end: ");
+		console_out(false, ">> type number of device or 'e' to end: ");
 		fgets(buffer, sizeof(buffer), stdin);
 
 		if (strlen(buffer) == 1 && buffer[0] == '\n') {
 			__DEBUG("-> error due to fgets return empty string\n");
-			__NSILENT	printf("> problem with receiving answer\n");
+            console_out(false, "> problem with receiving answer\n");
 			gc_free();
 			__PERFORM_WSACleanup();
 			clear_param();
@@ -279,7 +276,7 @@ __NSILENT	show_err(WSAGetLastError());			\
 			return 0; //powod: uzytkownik zazadal zakonczenia programu
 		}
 		if (!is_dec_number(buffer)) {
-			__NSILENT	printf("> answers is not a number\n");
+			 console_out(false, "> answers is not a number\n");
 			gc_free();
 			__PERFORM_WSACleanup()
 			clear_param();
@@ -288,7 +285,7 @@ __NSILENT	show_err(WSAGetLastError());			\
 		}
 		i_device = strtol(buffer, NULL, 10);
 		if (i_device > n_device - 1) {
-			__NSILENT	printf("> device with this number is not listed\n");
+			 console_out(false, "> device with this number is not listed\n");
 			gc_free();
 			__PERFORM_WSACleanup()
 			clear_param();
@@ -305,7 +302,7 @@ __NSILENT	show_err(WSAGetLastError());			\
 		found_mod = (uint8_t *)calloc(n_device, sizeof(uint8_t));
 		if (found_mod == NULL) {
 			__DEBUG("-> found_mod allocation memory failed\n");
-			__NSILENT	printf("> error memory access\n");
+			 console_out(false, "> error memory access\n");
 			gc_free();
 			__PERFORM_WSACleanup()
 			clear_param();
@@ -332,7 +329,7 @@ __NSILENT	show_err(WSAGetLastError());			\
 		}
 
 		if (val_max_found_mod == 0) {
-			__NSILENT	printf("> not found requested device\n");
+            console_out(false, "> not found requested device\n");
 			gc_free();
 			__PERFORM_WSACleanup()
 			clear_param();
@@ -342,15 +339,15 @@ __NSILENT	show_err(WSAGetLastError());			\
 
 		//ostrzezenie o innym adresie niz podano
 		if (param->address != 0 && param->address != pdevices_info[i_max_found_mod].address)
-			__NSILENT	printf("> given device has a different address\n");
+            console_out(false, "> given device has a different address\n");
 
 		//ostrzezenie o innej nazwie niz podano
 		if (param->name != NULL && strcmp(param->name, pdevices_info[i_max_found_mod].name) != 0)
-			__NSILENT	printf("> given device has a different name\n");
+            console_out(false, "> given device has a different name\n");
 
 		//ostrzezenie o innym cod niz podano
 		if (param->cod != 0 && param->cod != pdevices_info[i_max_found_mod].COD)
-			__NSILENT	printf("> given device has a different cod\n");
+            console_out(false, "> given device has a different cod\n");
 
 		param->address = pdevices_info[i_max_found_mod].address;
 		ii_device = i_max_found_mod;
@@ -361,10 +358,10 @@ __NSILENT	show_err(WSAGetLastError());			\
 	//*** sockety ***//
 	client = socket(AF_BTH, SOCK_STREAM, BTHPROTO_RFCOMM);
 	if(client == INVALID_SOCKET){
-	    __NSILENT printf("TODO error socket\n");
+        console_out(false, "TODO error socket\n");
 	}else{
-        __NSILENT printf("TODO socket is ok\n");
-        __NSILENT printf("i_device: %d\n", ii_device);
+        console_out(false, "TODO socket is ok\n");
+        console_out(false, "i_device: %d\n", ii_device);
         address.btAddr = param->address;
         memcpy(&address.serviceClassId, &pdevices_info[ii_device].ServiceClassId, sizeof(GUID)); //#TODO sciagnac cod
         address.addressFamily = AF_BTH;
@@ -372,26 +369,25 @@ __NSILENT	show_err(WSAGetLastError());			\
 
         if (connect (client, (SOCKADDR *)&address, sizeof(address))==SOCKET_ERROR){
             //Perform error handling.
-            __NSILENT printf("TODO error connect: %I32d\n", WSAGetLastError());
-            if(closesocket (client) == SOCKET_ERROR){ __NSILENT printf("closesocket failed\n");}
-            else { __NSILENT printf("closesocket success\n");}
+            console_out(false, "TODO error connect: %I32d\n", WSAGetLastError());
+            if(closesocket (client) == SOCKET_ERROR){ console_out(false, "closesocket failed\n");}
+            else { console_out(false, "closesocket success\n");}
         }else{
             uint32_t ret = 0;
-            __NSILENT printf("TODO connect is ok\n");
+            console_out(false, "TODO connect is ok\n");
             ret = send(client, "makarena\0", 9, 0);
-            if(ret == SOCKET_ERROR){ __NSILENT printf("send SOCKET_ERROR\n");}
-            else if(ret < 9){ __NSILENT printf("nie wszystkie dane zostaly wyslane\n");}
-            else if(ret != 9){ __NSILENT printf("cos poszlo nie tak\n");}
-            else { __NSILENT printf("dane zostaly wyslane, wszystko jest ok\n");}
-            if(closesocket (client) == SOCKET_ERROR){ __NSILENT printf("closesocket failed\n");}
-            else { __NSILENT printf("closesocket success\n");}
+            if(ret == SOCKET_ERROR){ console_out(false, "send SOCKET_ERROR\n");}
+            else if(ret < 9){ console_out(false, "nie wszystkie dane zostaly wyslane\n");}
+            else if(ret != 9){ console_out(false, "cos poszlo nie tak\n");}
+            else { console_out(false, "dane zostaly wyslane, wszystko jest ok\n");}
+            if(closesocket (client) == SOCKET_ERROR){ console_out(false, "closesocket failed\n");}
+            else { console_out(false, "closesocket success\n");}
         }
     }
 
 
 	//*** zakonczenie programu z powodzeniem ***//
-	__VERBOSE
-		printf("> all done without error\n");
+	console_out(true, "> all done without error\n");
 
 	gc_free();
 	__PERFORM_WSACleanup()

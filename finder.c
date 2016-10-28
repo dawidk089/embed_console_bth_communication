@@ -7,7 +7,7 @@
 
 #define MAX_BT_FIND 2
 
-uint32_t err_code;
+static uint32_t err_code = 0;
 PBT_FOUND pbt_list;
 
 PBT_FOUND find_bt_device(uint32_t * n_device) {

@@ -9,10 +9,10 @@ typedef struct {
 	bool silent;
 	bool help;
 	char * filename;
-	bool is_device_specified;
 }PARAM, *PPARAM;
 
 PPARAM get_param(int argc, char **argv);
 void clear_param();
+void console_out(bool verbose, const char * format, ...);
 uint8_t get_err_param();
 void show_help();
