@@ -30,6 +30,7 @@ if !ret!==y goto SILENT_TEST
 if !ret!==n goto :eof
 goto INIT
 
+
 ::SILENT TESTS
 :SILENT_TEST
 set "ret="
@@ -123,10 +124,11 @@ set "ret=" & set /p ret=Switch OFF service and type ENTER!
 cls
 call :EXEC "REQUEST --> silent and valid name" "-s -n %vdev.name%" 67 0 & echo. & echo.
 call :EXEC "REQUEST --> verbose" "-v" 67 1 & echo. & echo.
+
 call :EXEC "REQUEST --> empty callpath" "" 67 1 & echo. & echo.
 set "ret=" & set /p ret=Service test was been performed [ENTER to follow]
 set "ret=" & set /p ret=Repeat? [y/n]
-if !ret!==y goto SERIVICE_TEST
+if !ret!==y goto SERVICE_TEST
 
 ::NO DEVICE
 :NO_DEVICE_TEST
@@ -177,7 +179,8 @@ if !ret!==y goto NO_REQUESTED_DEVICE_TEST
 :REQUESTED_DEVICE_DIFFERENCE_TEST
 cls
 set "ret=" & set /p ret=For the moment will be preformed requested devices difference test (all of them) [ENTER to start or s=SKIP to ommit]
-if %ret%==s goto :eof
+if !ret!==s goto :eof
+set "ret=" & set /p ret=Switch ON your requested device and type ENTER!
 call :EXEC "REQUEST --> difference name, address and COD" "-n AMARENA -a %vdev.address% -c %vdev.cod%" 0 1 & echo. & echo.
 call :EXEC "REQUEST --> valid name, address+1 and COD with verbose" "-n %vdev.name% -a 98D3312016CB -c %vdev.cod% -v" 0 1 & echo. & echo.
 call :EXEC "REQUEST --> valid name, address and COD+1 with silent" "-n %vdev.name% -a %vdev.address% -c 575375 -s" 0 0 & echo. & echo.
