@@ -5,6 +5,7 @@
 !*.c
 !*.h
 !.gitignore
+!README.md
 !maintest\ v1.1.bat
 
 #this especially ignore
