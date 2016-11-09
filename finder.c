@@ -5,7 +5,7 @@
 #include <stdbool.h>
 #include <stdio.h>
 
-#define MAX_BT_FIND 2
+#define MAX_BT_FIND 50
 
 static uint32_t err_code = 0;
 PBT_FOUND pbt_list;

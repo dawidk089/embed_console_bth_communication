@@ -7,13 +7,13 @@ call :GETOPTS %*
 if defined is_help call :HELP & goto :eof
 
 set "vdev.name=WEATHER"
-set "vdev.address=98D3312016CA"
-set "vdev.cod=575374"
+set "vdev.address=0x98D3312016CA"
+set "vdev.cod=0x575374"
 
 set "unknownswitch=-k"
 set "unknownvalue=makarena"
-set "nvdev.address=98D3312016CG"
-set "nvdev.cod=57537G"
+set "nvdev.address=0x98D3312016CG"
+set "nvdev.cod=0x57537G"
 
 echo name: %vdev.name%
 echo address: %vdev.address%

@@ -30,10 +30,6 @@ int main(int argc, char **argv) {
 	//*** deklaracja zmiennych ***//
 	//rutynowe
 	uint8_t i;
-	bool is_device_specified = false;
-
-	//parametry wywolania
-	PPARAM param = NULL;
 
 	//winsock
 	uint32_t ret_status = 0;
@@ -45,102 +41,144 @@ int main(int argc, char **argv) {
 	//info o urzadzeniach
 	PBT_FOUND pdevices_info = NULL;
 
+	//required device
+	bool is_device_specified = false;
+	struct {
+        char * name;
+        uint32_t cod;
+        uint64_t address;
+	}rquird_dev = {NULL, 0, 0};
+
 	//socket
 	SOCKET client;
 	SOCKADDR_BTH address;
 	memset(&address, 0, sizeof(address));
 	memset(&address, 0, sizeof(client));
 
-	//*** rozpakowanie parametrow ***//
+	//filepath do zapisu
+	char * filepath = NULL;
+
+	//*** rozpakowanie parametrow ***// //#HOTTTODO
 #define __NSILENT                   \
-if((!param->silent && !param->verbose) || (param->verbose))
+if((!param_is_silent() && !param_is_verbose()) || param_is_verbose())
 
 #define __VERBOSE                   \
-if(param->verbose)
-    param = get_param(argc, argv);
-	switch(get_err_param()){
-    case 0:
-        break;
-    case 0x01:
-        gc_free();
-        clear_param();
-        return 0;
-        break;
-    case 0x10:
-        __DEBUG("->not call param init function (get_param)\n");
-        break;
-    case 0x11:
-        __DEBUG("-> device name in get_params allocation memory failed\n");
-        console_out(false, "> error memory access\n");
-        __NSILENT show_err(0x20000002);
-        gc_free();
-        clear_param();
-        return 0x11; //powod: blad alokacji pamieci (filename)
-        break;
-    case 0x20:
-    case 0x21:
-    case 0x31:
-    case 0x32:
-    case 0x41:
-    case 0x42:
-    case 0x43:
-    case 0x51:
-    case 0x52:
-    case 0x53:
-    default:
-        console_out(false, "> callpath argument error\n");
-        clear_param();
-        gc_free();
-        return 0x20;
+if(param_is_verbose())
+
+    if(!(param_add('n', VAR_TYPE_STRING, "name")
+    &&param_add('a', VAR_TYPE_UINT64, "address")
+    &&param_add('c', VAR_TYPE_UINT32, "COD")
+    &&param_add('f', VAR_TYPE_STRING, "filepath")))
+       return 0x20; //#TODO doprecyzowac
+
+    if(param_set(argc, argv)){
+        if(param_is_help()){ param_show_help(); return 0; }
+    }else{
+        uint8_t err_code = param_get_err();
+        switch(err_code){
+        case 0x11:
+            __DEBUG("-> param value in set_params allocation memory failed\n");
+            param_cout(false, "> error memory access\n");
+            __NSILENT show_err(0x20000002);
+            param_clear();
+            return 0x11; //powod: blad alokacji pamieci wartosci parametru
+            break;
+        case 0x12:
+        case 0x13:
+        case 0x23:
+            __DEBUG("-> programmer mistake 0x12, 0x13 or 0x23\n");
+            param_clear();
+            break;
+        case 0x20:
+        case 0x21:
+        case 0x22:
+        case 0x24:
+        case 0x31:
+        case 0x32:
+        case 0x33:
+        case 0x34:
+        case 0x41:
+        case 0x42:
+        case 0x43:
+        case 0x51:
+        default:
+            param_cout(false, "> callpath argument error\n");
+            param_clear();
+            return 0x20;
+        }
     }
 
-	if (param->address != 0 || param->name != NULL || param->cod != 0) is_device_specified = true;
+    //#TODO sprawdz czy cod i adres sa specyfikowane
+    //#TODO rozwazyc strukture stalych
+    {
+        void * temp = NULL;
+
+        rquird_dev.name = ((temp = param_get("name")) ? (char*)temp : NULL);
+        rquird_dev.cod = ((temp = param_get("COD")) ? *(uint32_t*)temp : 0);
+        rquird_dev.address = ((temp = param_get("address")) ? *(uint64_t*)temp : 0);
+    }
+
+	if ((rquird_dev.address != 0
+      || rquird_dev.name != NULL
+      || rquird_dev.cod != 0
+      ) && !param_get_err()
+     ) is_device_specified = true;
 
 
 	//wyswietlanie podanych parametrow
-	console_out(true, "> parameters:\n");
-	console_out(true, param->name == NULL
+	param_cout(true, "> parameters:\n");
+	//#HOTTTODO
+	param_cout(true, rquird_dev.name == NULL
 		? "\tdevice name was not specified\n"
-		: "\tdevice name: %s\n", param->name
+		: "\tdevice name: %s\n", rquird_dev.name
 	);
-	console_out(true, param->address == 0
+	//#HOTTTODO
+	param_cout(true, rquird_dev.address == 0
         ? "\tdevice address was not specified\n"
-        : "\tdevice address: %I64d\n", param->address
+        : "\tdevice address: 0x%I64X\n", rquird_dev.address
 	);
-	console_out(true, param->cod == 0
+	//#HOTTTODO
+	param_cout(true, rquird_dev.cod == 0
         ? "\tdevice cod was not specified\n"
-        : "\tdevice cod: %I32d\n", param->cod
+        : "\tdevice cod: 0x%I32X\n", rquird_dev.cod
 	);
 
+	//#HOTTTODO
 	//brak wymaganych parametrow wywolania w trybie -s
-	if (param->silent && !is_device_specified) {
+	if (param_is_silent() && !is_device_specified) {
 		__DEBUG("-> lack of required parameters in mode <silent>\n");
 		gc_free();
-		clear_param();
+		param_clear();
 		return 0x21; //powod: niemozliwa kontynuacja w trybie silent ze wzgledu na brak wymaganych parametrow wywolania
 	}
 
+	//#HOTTTODO
 	//przygotowanie domyslnej nazwy pliku do zapisu
 	__DEBUG("-> default filename creation\n");
-	if (param->filename == NULL) {
+	if ((filepath = (char *)param_get("filepath")) == NULL) {
 		time_t t = time(NULL);
 		struct tm date = *localtime(&t);
 
+		//#HOTTTODO
 		//alokacja pamieci
-		param->filename = (char*)calloc(32, sizeof(char));
-		if (param->filename == NULL) {
+		filepath = (char*)calloc(32, sizeof(char));
+		//#HOTTTODO
+		if (filepath == NULL) {
 			__DEBUG("-> filename allocation memory failed\n");
-			 console_out(false, "> error memory access\n");
+			 param_cout(false, "> error memory access\n");
 			__NSILENT	show_err(ret_status);
 			gc_free();
-			clear_param();
+			param_clear();
 			return 0x11; //powod: blad alokacji pamieci (filename)
 		}
-		gc_add((void**)&(param->filename));
+		//#HOTTTODO
+		gc_add((void**)&(filepath));
 
 		//skladanie nazwy
-		sprintf(param->filename, "data_%02d%02d%02d_%02d%02d%02d.txt", date.tm_mday, date.tm_mon+1 , (date.tm_year+1900)%100, date.tm_hour, date.tm_min, date.tm_sec);
-		console_out(true, "> filename: %s\n", param->filename);
+		//#HOTTTODO
+		sprintf(filepath, "data_%02d%02d%02d_%02d%02d%02d.txt", date.tm_mday, date.tm_mon+1 , (date.tm_year+1900)%100, date.tm_hour, date.tm_min, date.tm_sec);
+		//#HOTTTODO
+		param_cout(true, "> filename: %s\n", filepath);
 	}
 
 	//*** wyszukiwanie urzadzen ***//
@@ -160,7 +198,7 @@ __NSILENT	show_err(WSAGetLastError());			\
 		}											\
 	}
 
-	console_out(true, "> choosen version Windows Sockets: %d.%d.\n", HIBYTE(winsock_ver), LOBYTE(winsock_ver));
+	param_cout(true, "> choosen version Windows Sockets: %d.%d.\n", HIBYTE(winsock_ver), LOBYTE(winsock_ver));
 	ret_status = WSAStartup(winsock_ver, &WSAData);
 
 	__DEBUG(
@@ -173,11 +211,11 @@ __NSILENT	show_err(WSAGetLastError());			\
 		__NSILENT
 			show_err(ret_status);
 		gc_free();
-		clear_param();
+		param_clear();
 		return 0x31;  //powod: blad WSAStartup
 	}
 
-	console_out(true,
+	param_cout(true,
             "> expects version Windows Sockets: %d.%d\n"
 			"> the highest version Windows Sockets supported: %d.%d\n",
 			HIBYTE(WSAData.wVersion), LOBYTE(WSAData.wVersion),
@@ -186,11 +224,11 @@ __NSILENT	show_err(WSAGetLastError());			\
 
 
 	//wyszukiwanie urzadzen
-    console_out(true, "> device discovering -- wait 2 to 15s\n");
+    param_cout(true, "> device discovering -- wait 2 to 15s\n");
 	pdevices_info = find_bt_device(&n_device);
 	switch ((ret_status = get_finder_err())) {
 	case 0:
-		console_out(true, "> finding device completed successsfully\n");
+		param_cout(true, "> finding device completed successsfully\n");
 		break;
 	case 0x20000005:
 	    __NSILENT show_err(ret_status);
@@ -199,36 +237,37 @@ __NSILENT	show_err(WSAGetLastError());			\
 		__NSILENT show_err(ret_status);
 		__PERFORM_WSACleanup();
 		gc_free();
-		clear_param();
+		param_clear();
 		clear_bt_found();
 		return 0x41;
 	default:
 		__DEBUG("-> find_bt_device run failed\n");
-		 console_out(false, "> search devices failed\n");
+		 param_cout(false, "> search devices failed\n");
 		if(ret_status == WSASERVICE_NOT_FOUND){
-		     console_out(false, "> service found nothing or service has not been found\n");
+		     param_cout(false, "> service found nothing or service has not been found\n");
 		     __VERBOSE show_err(ret_status);
             __PERFORM_WSACleanup();
             gc_free();
-            clear_param();
+            param_clear();
             clear_bt_found();
             return 0x43; //powod: brak service
 		}
         __NSILENT show_err(ret_status);
         __PERFORM_WSACleanup();
         gc_free();
-        clear_param();
+        param_clear();
         clear_bt_found();
-        return 0x40; //powod: blad podczas wyszukiwania urzadzen //#TODO co to jest?!
+        return 0x40; //powod: blad podczas wyszukiwania urzadzen
 	}
 
 	//*** analiza znalezionych urzadzen ***//
 
 	//wylistownie znalezionych urzadzen
-	if (param->verbose || !is_device_specified) {
-		console_out(false, "\n");
+	//#HOTTTODO
+	if (param_is_verbose() || !is_device_specified) {
+		param_cout(false, "\n");
 		for (i = 0; i < n_device; i++) {
-            console_out(false,
+            param_cout(false,
                 "\n"
                 "Device found number: %d\n"
                 "\tName: %s\n"
@@ -247,7 +286,7 @@ __NSILENT	show_err(WSAGetLastError());			\
                 pdevices_info[i].COD
             );
 		}
-		console_out(false, "\n");
+		param_cout(false, "\n");
 	}
 
 	//pobranie wybranego numeru urzadzenia
@@ -255,15 +294,15 @@ __NSILENT	show_err(WSAGetLastError());			\
 		char buffer[64];
 		uint32_t i_device = 0;
 
-		console_out(false, ">> type number of device or 'e' to end: ");
+		param_cout(false, ">> type number of device or 'e' to end: ");
 		fgets(buffer, sizeof(buffer), stdin);
 
 		if (strlen(buffer) == 1 && buffer[0] == '\n') {
 			__DEBUG("-> error due to fgets return empty string\n");
-            console_out(false, "> problem with receiving answer\n");
+            param_cout(false, "> problem with receiving answer\n");
 			gc_free();
 			__PERFORM_WSACleanup();
-			clear_param();
+			param_clear();
 			clear_bt_found();
 			return 0x51; //powod: pusty napis
 		}
@@ -271,28 +310,29 @@ __NSILENT	show_err(WSAGetLastError());			\
 		if (strcmp(buffer, "e") == 0 || strcmp(buffer, "end") == 0) {
 			gc_free();
 			__PERFORM_WSACleanup();
-			clear_param();
+			param_clear();
 			clear_bt_found();
 			return 0; //powod: uzytkownik zazadal zakonczenia programu
 		}
 		if (!is_dec_number(buffer)) {
-			 console_out(false, "> answers is not a number\n");
+            param_cout(false, "> answers is not a number\n");
 			gc_free();
 			__PERFORM_WSACleanup()
-			clear_param();
+			param_clear();
 			clear_bt_found();
             return 0x52; //powod: podano nieporawna wartosc -- odp nie jest liczba
 		}
 		i_device = strtol(buffer, NULL, 10);
 		if (i_device > n_device - 1) {
-			 console_out(false, "> device with this number is not listed\n");
+            param_cout(false, "> device with this number is not listed\n");
 			gc_free();
 			__PERFORM_WSACleanup()
-			clear_param();
+			param_clear();
 			clear_bt_found();
             return 0x53; //powod: podano niepoprawna wartosc -- odp nie jest liczba z dozwolonego zakresu
 		}
-		param->address = pdevices_info[i_device].address;
+		//#HOTTTODO //...
+		rquird_dev.address = pdevices_info[i_device].address;
 		ii_device = i_device;
 	}
 	else { //sprawdzenie czy znaleziono podane urzadzenie
@@ -302,10 +342,10 @@ __NSILENT	show_err(WSAGetLastError());			\
 		found_mod = (uint8_t *)calloc(n_device, sizeof(uint8_t));
 		if (found_mod == NULL) {
 			__DEBUG("-> found_mod allocation memory failed\n");
-			 console_out(false, "> error memory access\n");
+			 param_cout(false, "> error memory access\n");
 			gc_free();
 			__PERFORM_WSACleanup()
-			clear_param();
+			param_clear();
 			clear_bt_found();
             return 0x11; //powod: blad alokacji pamieci (found_mod)
 		}
@@ -314,11 +354,12 @@ __NSILENT	show_err(WSAGetLastError());			\
 		//podliczanie punktow 'trafienia'
 		for (i = 0; i < n_device; i++) {
 			found_mod[i] = 0;
-			if (param->address != 0 && param->address == pdevices_info[i].address)
+			//#HOTTTODO
+			if (rquird_dev.address != 0 && rquird_dev.address == pdevices_info[i].address)
 				found_mod[i] |= FOUND_MOD_ADDDRESS;
-			if (param->name != NULL && strcmp(param->name, pdevices_info[i].name) == 0)
+			if (rquird_dev.name != NULL && strcmp(rquird_dev.name, pdevices_info[i].name) == 0)
 				found_mod[i] |= FOUND_MOD_NAME;
-			if (param->cod != 0 && param->cod == pdevices_info[i].COD)
+			if (rquird_dev.cod != 0 && rquird_dev.cod == pdevices_info[i].COD)
 				found_mod[i] |= FOUND_MOD_COD;
 
 			//szukanie urzadzenia z najwieksza liczba pkt
@@ -329,70 +370,74 @@ __NSILENT	show_err(WSAGetLastError());			\
 		}
 
 		if (val_max_found_mod == 0) {
-            console_out(false, "> not found requested device\n");
+            param_cout(false, "> not found requested device\n");
 			gc_free();
 			__PERFORM_WSACleanup()
-			clear_param();
+			param_clear();
 			clear_bt_found();
 			return 0x42; //powod: nie znaleziono zadanego urzadzenia
 		}
 
 		//ostrzezenie o innym adresie niz podano
-		if (param->address != 0 && param->address != pdevices_info[i_max_found_mod].address)
-            console_out(false, "> given device has a different address\n");
+		//#HOTTTODO
+		if (rquird_dev.address != 0 && rquird_dev.address != pdevices_info[i_max_found_mod].address)
+            param_cout(false, "> given device has a different address\n");
 
 		//ostrzezenie o innej nazwie niz podano
-		if (param->name != NULL && strcmp(param->name, pdevices_info[i_max_found_mod].name) != 0)
-            console_out(false, "> given device has a different name\n");
+		//#HOTTTODO
+		if (rquird_dev.name != NULL && strcmp(rquird_dev.name, pdevices_info[i_max_found_mod].name) != 0)
+            param_cout(false, "> given device has a different name\n");
 
 		//ostrzezenie o innym cod niz podano
-		if (param->cod != 0 && param->cod != pdevices_info[i_max_found_mod].COD)
-            console_out(false, "> given device has a different cod\n");
+		//#HOTTTODO
+		if (rquird_dev.cod != 0 && rquird_dev.cod != pdevices_info[i_max_found_mod].COD)
+            param_cout(false, "> given device has a different cod\n");
 
-		param->address = pdevices_info[i_max_found_mod].address;
+            //#HOTTTODO
+		rquird_dev.address = pdevices_info[i_max_found_mod].address;
 		ii_device = i_max_found_mod;
 	}
 	//#TODO spr zakresy danych przy spr parametrow
 
-
 	//*** sockety ***//
 	client = socket(AF_BTH, SOCK_STREAM, BTHPROTO_RFCOMM);
 	if(client == INVALID_SOCKET){
-        console_out(false, "TODO error socket\n");
+        param_cout(false, "TODO error socket\n");
 	}else{
-        console_out(false, "TODO socket is ok\n");
-        console_out(false, "i_device: %d\n", ii_device);
-        address.btAddr = param->address;
+        param_cout(false, "TODO socket is ok\n");
+        param_cout(false, "i_device: %d\n", ii_device);
+        //#HOTTTODO
+        address.btAddr = rquird_dev.address;
         memcpy(&address.serviceClassId, &pdevices_info[ii_device].ServiceClassId, sizeof(GUID)); //#TODO sciagnac cod
         address.addressFamily = AF_BTH;
         address.port = 1 & 0xFF; //#TODO
 
         if (connect (client, (SOCKADDR *)&address, sizeof(address))==SOCKET_ERROR){
             //Perform error handling.
-            console_out(false, "TODO error connect: %I32d\n", WSAGetLastError());
-            if(closesocket (client) == SOCKET_ERROR){ console_out(false, "closesocket failed\n");}
-            else { console_out(false, "closesocket success\n");}
+            param_cout(false, "TODO error connect: %I32d\n", WSAGetLastError());
+            if(closesocket (client) == SOCKET_ERROR){ param_cout(false, "closesocket failed\n");}
+            else { param_cout(false, "closesocket success\n");}
         }else{
             uint32_t ret = 0;
-            console_out(false, "TODO connect is ok\n");
+            param_cout(false, "TODO connect is ok\n");
             ret = send(client, "makarena\0", 9, 0);
-            if(ret == SOCKET_ERROR){ console_out(false, "send SOCKET_ERROR\n");}
-            else if(ret < 9){ console_out(false, "nie wszystkie dane zostaly wyslane\n");}
-            else if(ret != 9){ console_out(false, "cos poszlo nie tak\n");}
-            else { console_out(false, "dane zostaly wyslane, wszystko jest ok\n");}
-            if(closesocket (client) == SOCKET_ERROR){ console_out(false, "closesocket failed\n");}
-            else { console_out(false, "closesocket success\n");}
+            if(ret == SOCKET_ERROR){ param_cout(false, "send SOCKET_ERROR\n");}
+            else if(ret < 9){ param_cout(false, "nie wszystkie dane zostaly wyslane\n");}
+            else if(ret != 9){ param_cout(false, "cos poszlo nie tak\n");}
+            else { param_cout(false, "dane zostaly wyslane, wszystko jest ok\n");}
+            if(closesocket (client) == SOCKET_ERROR){ param_cout(false, "closesocket failed\n");}
+            else { param_cout(false, "closesocket success\n");}
         }
     }
 
 
 	//*** zakonczenie programu z powodzeniem ***//
-	console_out(true, "> all done without error\n");
+	param_cout(true, "> all done without error\n");
 
 	gc_free();
 	__PERFORM_WSACleanup()
 #undef __PERFORM_WSACleanup
-    clear_param();
+    param_clear();
     clear_bt_found();
     return 0;
 }
