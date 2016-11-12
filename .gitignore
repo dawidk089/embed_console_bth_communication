@@ -1,12 +1,7 @@
-#all is ignore
-*
-
-#excepts with
-!*.c
-!*.h
-!.gitignore
-!README.md
-!maintest\ v1.1.bat
-
-#this especially ignore
+.idea/
+*.cbp
+*.layout
+receiving_console/bin
+receiving_console/obj
+__pycache__
 rs232_comm_test.c
