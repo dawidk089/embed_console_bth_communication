@@ -10,3 +10,4 @@
 
 #this especially ignore
 rs232_comm_test.c
+*.depend

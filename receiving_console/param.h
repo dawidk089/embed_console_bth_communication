@@ -2,26 +2,28 @@
 #include <stdbool.h>
 
 typedef enum{
-    VAR_TYPE_BOOL,
-    VAR_TYPE_STRING,
-    VAR_TYPE_UINT8,
-    VAR_TYPE_UINT16,
-    VAR_TYPE_UINT32,
-    VAR_TYPE_UINT64
-}VAR_TYPE;
+    VAL_TYPE_BOOL,
+    VAL_TYPE_STRING,
+    VAL_TYPE_UINT8,
+    VAL_TYPE_UINT16,
+    VAL_TYPE_UINT32,
+    VAL_TYPE_UINT64
+}VAL_TYPE;
 
 typedef struct{
-    bool is_active;
+    bool is_defined;
     bool is_specified;
-    char dash_switch;
     void * value;
-    VAR_TYPE var_type;
+    VAL_TYPE var_type;
     size_t var_size;
-    char name[16];
+    char label[16];
 }PARAM, *PPARAM;
 
-bool param_add(char dash_switch, VAR_TYPE var_type, char name[16]);
+
+
+bool param_add(char dash_switch, VAL_TYPE var_type, char name[16]);
 bool param_set(int argc, char **argv);
+//#TODO niezainicjowane moga miec losowe wartosci
 void * param_get(char name[16]);
 bool param_is_silent();
 bool param_is_verbose();

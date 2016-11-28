@@ -11,7 +11,7 @@
 #define HELP_ON_PARAM_ERROR
 #define PRINT_FROM_INSIDE
 #define NAME_LENGTH (16)
-#define LETTER_NO (52)
+#define LETTER_NO (52) //must be in uint8_t
 #define GET_NO_ERR (UCHAR_MAX)
 
 static bool is_init = false;
@@ -22,22 +22,9 @@ static uint8_t err_code = 0;
 #define H_NO (7)
 
 //casesensitive
-static PARAM param[LETTER_NO] = {
-    {false, false, 'a', NULL}, {false, false, 'b', NULL}, {false, false, 'c', NULL}, {false, false, 'd', NULL},
-    {false, false, 'e', NULL}, {false, false, 'f', NULL}, {false, false, 'g', NULL}, {false, false, 'h', NULL},
-    {false, false, 'i', NULL}, {false, false, 'j', NULL}, {false, false, 'k', NULL}, {false, false, 'l', NULL},
-    {false, false, 'm', NULL}, {false, false, 'n', NULL}, {false, false, 'o', NULL}, {false, false, 'p', NULL},
-    {false, false, 'q', NULL}, {false, false, 'r', NULL}, {false, false, 's', NULL}, {false, false, 't', NULL},
-    {false, false, 'u', NULL}, {false, false, 'v', NULL}, {false, false, 'w', NULL}, {false, false, 'x', NULL},
-    {false, false, 'y', NULL}, {false, false, 'z', NULL},
-    {false, false, 'A', NULL}, {false, false, 'B', NULL}, {false, false, 'C', NULL}, {false, false, 'D', NULL},
-    {false, false, 'E', NULL}, {false, false, 'F', NULL}, {false, false, 'G', NULL}, {false, false, 'H', NULL},
-    {false, false, 'I', NULL}, {false, false, 'J', NULL}, {false, false, 'K', NULL}, {false, false, 'L', NULL},
-    {false, false, 'M', NULL}, {false, false, 'N', NULL}, {false, false, 'O', NULL}, {false, false, 'P', NULL},
-    {false, false, 'Q', NULL}, {false, false, 'R', NULL}, {false, false, 'S', NULL}, {false, false, 'T', NULL},
-    {false, false, 'U', NULL}, {false, false, 'V', NULL}, {false, false, 'W', NULL}, {false, false, 'X', NULL},
-    {false, false, 'Y', NULL}, {false, false, 'Z', NULL}
-};
+//{false, false, 'a', NULL}
+
+static PARAM param[LETTER_NO]; //#TODO czy to bedzie wyzerowane?!
 
 static uint8_t get_no(char dash_switch){
     if(dash_switch<'A') return GET_NO_ERR;
@@ -47,7 +34,8 @@ static uint8_t get_no(char dash_switch){
     else return GET_NO_ERR;
 }
 
-bool param_add(char dash_switch, VAR_TYPE var_type, char name[NAME_LENGTH]){
+//#TODO can be overwrite
+bool param_add(char dash_switch, VAL_TYPE var_type, char name[NAME_LENGTH]){
     uint8_t no;
     size_t var_size;
 
@@ -58,25 +46,28 @@ bool param_add(char dash_switch, VAR_TYPE var_type, char name[NAME_LENGTH]){
     if((no = get_no(dash_switch))==GET_NO_ERR){ err_code = 0x22; return false; }
 
     switch(var_type){
-    case VAR_TYPE_BOOL: var_size= sizeof(bool); break;
-    case VAR_TYPE_STRING: var_size = 0; break;
-    case VAR_TYPE_UINT8: var_size = sizeof(uint8_t); break;
-    case VAR_TYPE_UINT16: var_size = sizeof(uint16_t); break;
-    case VAR_TYPE_UINT32: var_size = sizeof(uint32_t); break;
-    case VAR_TYPE_UINT64: var_size = sizeof(uint64_t); break;
+    case VAL_TYPE_BOOL: var_size= sizeof(bool); break;
+    case VAL_TYPE_STRING: var_size = 0; break;
+    case VAL_TYPE_UINT8: var_size = sizeof(uint8_t); break;
+    case VAL_TYPE_UINT16: var_size = sizeof(uint16_t); break;
+    case VAL_TYPE_UINT32: var_size = sizeof(uint32_t); break;
+    case VAL_TYPE_UINT64: var_size = sizeof(uint64_t); break;
     }
 
     if(strlen(name)>=NAME_LENGTH){ err_code = 0x13; return false; }
 
-    strcpy(param[no].name, name);
+    strcpy(param[no].label, name);
 
     param[no].var_type = var_type;
-    param[no].is_active = true;
+    param[no].is_defined = true;
+    param[no].is_specified = false;
+    param[no].value = NULL;
     param[no].var_size = var_size;
 
     return true;
 }
 
+//#TODO jaki wplyw ma niezainicjalizowana tablica globalna param
 bool param_set(int argc, char **argv) {
 	uint8_t i;
 	uint8_t no = GET_NO_ERR;
@@ -85,19 +76,19 @@ bool param_set(int argc, char **argv) {
 
 	//init embedded switch
 	no = get_no('s');
-	param[no].is_active = true;
-	param[no].var_type = VAR_TYPE_BOOL;
-	strcpy(param[no].name, "silent");
+	param[no].is_defined = true;
+	param[no].var_type = VAL_TYPE_BOOL;
+	strcpy(param[no].label, "silent");
 
 	no = get_no('v');
-	param[no].is_active = true;
-	param[no].var_type = VAR_TYPE_BOOL;
-	strcpy(param[no].name, "verbose");
+	param[no].is_defined = true;
+	param[no].var_type = VAL_TYPE_BOOL;
+	strcpy(param[no].label, "verbose");
 
 	no = get_no('h');
-	param[no].is_active = true;
-	param[no].var_type = VAR_TYPE_BOOL;
-	strcpy(param[no].name, "help");
+	param[no].is_defined = true;
+	param[no].var_type = VAL_TYPE_BOOL;
+	strcpy(param[no].label, "help");
 
 	no = GET_NO_ERR;
 
@@ -111,47 +102,46 @@ bool param_set(int argc, char **argv) {
 		}
 
 		if((no = get_no(argv[i][1]))==GET_NO_ERR){ err_code = 0x22; continue; }
-		if(!param[no].is_active){ err_code = 0x20; continue; }
-		if(param[no].var_type != VAR_TYPE_BOOL){
+		if(!param[no].is_defined){ err_code = 0x20; continue; }
+		if(param[no].var_type != VAL_TYPE_BOOL){
             if (i + 1 > argc - 1){ err_code = 0x31; continue; } //brak nastepnego argumentu
             if (strlen(argv[i+1]) == 0){ err_code = 0x32; continue; } //pusty napis ""
             if(argv[i+1][0] == '-' && strlen(argv[i+1]) == 2){ err_code = 0x34; continue; } //nastepny argument jest switchem
             ++i;
 		}
 
-        if(param[no].var_type == VAR_TYPE_STRING)
+        if(param[no].var_type == VAL_TYPE_STRING)
             param[no].var_size = sizeof(char) * (strlen(argv[i]) + 1);
 
         if(!(param[no].value = calloc(1, param[no].var_size))){ err_code = 0x11; return false; }
 
         switch(param[no].var_type){
-        case VAR_TYPE_STRING:
+        case VAL_TYPE_STRING:
             memcpy(param[no].value, argv[i], param[no].var_size);
             break;
-        case VAR_TYPE_BOOL:
+        case VAL_TYPE_BOOL:
             *(bool*)param[no].value = true;
             break;
         //#TODO specified to need to use param_clear to clear alloc to string values
-        //#TODO strtoul may not be perform conversion the zero!
-        case VAR_TYPE_UINT8:
+        case VAL_TYPE_UINT8:
             if(!is_pfixnumber(argv[i])) { err_code = 0x40; continue; }
             ulnumber = strtoul(argv[i], NULL, 0);
             if(ulnumber == 0 || ulnumber >= UCHAR_MAX){ err_code = 0x51; continue; }
             *(uint8_t*)param[no].value = ulnumber;
             break;
-        case VAR_TYPE_UINT16:
+        case VAL_TYPE_UINT16:
             if(!is_pfixnumber(argv[i])) { err_code = 0x40; continue; }
             ulnumber = strtoul(argv[i], NULL, 0);
             if(ulnumber == 0 || ulnumber >= USHRT_MAX){ err_code = 0x51; continue; }
             *(uint16_t*)param[no].value = ulnumber;
             break;
-        case VAR_TYPE_UINT32:
+        case VAL_TYPE_UINT32:
             if(!is_pfixnumber(argv[i])) { err_code = 0x40; continue; }
             ulnumber = strtoul(argv[i], NULL, 0);
             if(ulnumber == 0 || ulnumber == ULONG_MAX){ err_code = 0x51; continue; }
             *(uint32_t*)param[no].value = ulnumber;
             break;
-        case VAR_TYPE_UINT64:
+        case VAL_TYPE_UINT64:
             if(!is_pfixnumber(argv[i])) { err_code = 0x40; continue; }
             ullnumber = strtoull(argv[i], NULL, 0);
             if(ullnumber == 0 || ullnumber == ULLONG_MAX){ err_code = 0x51; continue; }
@@ -162,8 +152,8 @@ bool param_set(int argc, char **argv) {
 	}
 
 	for(i=0; i<LETTER_NO; i++){
-        if(param[i].is_active
-        &&param[i].var_type == VAR_TYPE_BOOL
+        if(param[i].is_defined
+        &&param[i].var_type == VAL_TYPE_BOOL
         &&!param[i].is_specified){
             if(!(param[i].value = calloc(1, param[i].var_size))){ err_code = 0x11; return false; }
             *(bool*)param[i].value = false;
@@ -181,7 +171,7 @@ void * param_get(char name[16]){
 
     if(!is_init){ err_code = 0x10; return NULL; }
     for(i=0; i<LETTER_NO; i++){
-        if(!strcmp(name, param[i].name)){
+        if(!strcmp(name, param[i].label)){
             if(!param[i].is_specified) return NULL;
             else return param[i].value;
         }
