@@ -5,3 +5,4 @@ receiving_console/bin
 receiving_console/obj
 __pycache__
 rs232_comm_test.c
+*.depend

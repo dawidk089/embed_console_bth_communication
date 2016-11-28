@@ -65,10 +65,10 @@ if((!param_is_silent() && !param_is_verbose()) || param_is_verbose())
 #define __VERBOSE                   \
 if(param_is_verbose())
 
-    if(!(param_add('n', VAR_TYPE_STRING, "name")
-    &&param_add('a', VAR_TYPE_UINT64, "address")
-    &&param_add('c', VAR_TYPE_UINT32, "COD")
-    &&param_add('f', VAR_TYPE_STRING, "filepath")))
+    if(!(param_add('n', VAL_TYPE_STRING, "name")
+    &&param_add('a', VAL_TYPE_UINT64, "address")
+    &&param_add('c', VAL_TYPE_UINT32, "COD")
+    &&param_add('f', VAL_TYPE_STRING, "filepath")))
        return 0x20; //#TODO doprecyzowac
 
     if(param_set(argc, argv)){
