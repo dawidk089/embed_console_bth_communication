@@ -4,7 +4,7 @@
 #include <stdbool.h>
 
 #include "err.h"
-#include "param.h"
+#include "param/param.h"
 #include "finder.h"
 #include "gc.h"
 #include "stringcheck.h"
@@ -25,8 +25,16 @@
 #define __DEBUG(...)
 #endif
 
+//#define __ALL_TEST
+
+void RunAllTests(void);
 
 int main(int argc, char **argv) {
+
+    #ifdef __ALL_TEST
+    RunAllTests();
+    #endif // __ALL_TEST
+
 	//*** deklaracja zmiennych ***//
 	//rutynowe
 	uint8_t i;

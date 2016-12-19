@@ -209,7 +209,7 @@ void param_clear(){
 void param_cout(bool verbose, const char * format, ...){
     va_list args;
 
-    if(!is_init){ err_code = 0x10; return; }
+    if(!is_init && !err_code){ err_code = 0x10; return; }
 
     if(param_is_silent()) return;
     if((!param_is_verbose() && !verbose) || param_is_verbose()){
@@ -220,7 +220,7 @@ void param_cout(bool verbose, const char * format, ...){
 }
 
 uint8_t param_get_err(){
-    return (!is_init ? 0x10 : err_code);
+    return (!is_init && !err_code ? 0x10 : err_code);
 }
 
 void param_show_help() {
